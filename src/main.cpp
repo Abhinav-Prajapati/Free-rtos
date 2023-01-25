@@ -24,7 +24,7 @@ bool redSwitch(byte channelInput, bool defaultValue)
   int ch = readChannel(channelInput, 0, 100, intDefaultValue);
   return (ch > 50);
 }
-
+//Tack for fsi6s to recive signal
 void ReadContorller(void *pvParameters)
 {
   (void)pvParameters;
@@ -32,45 +32,30 @@ void ReadContorller(void *pvParameters)
   ibusRc.begin(ibusRcSerial);
 
   int ch_2;
+  int ch;
   while (1)
   {
-    // Read the input on analog pin 0:
-    // int ch = readChannel(2, 0, 1023, 0);
-    int ch = redSwitch(9, 1);
-      debugSerial.print(ch+" ");
 
-
-    if (ch_2!=redSwitch(8, 1))
+    if (ch_2 != redSwitch(8, 1))
     {
-     ch_2 = redSwitch(8, 1);
+      ch_2 = redSwitch(8, 1);
     }
-    
-
-
-
-    
-      debugSerial.println(ch_2);
+    if (ch != redSwitch(9, 1))
+    {
+      ch = redSwitch(9, 1);
+    }
 
     xQueueSend(integerQueue, &ch, portMAX_DELAY);
     xQueueSend(integerQueue_2, &ch_2, portMAX_DELAY);
 
-    // One tick delay (15ms) in between reads for stability
     vTaskDelay(1);
   }
 }
-
-/**
- * Serial task.
- * Prints the received items from the queue to the serial monitor.
- */
+//task to print the value in serial moniter
 void TaskSerial(void *pvParameters)
 {
   (void)pvParameters;
 
-  // Init Arduino serial
-  // debugSerial.begin(9600);
-
-  // Wait for serial port to connect. Needed for native USB, on LEONARDO, MICRO, YUN, and other 32u4 based boards.
   while (!Serial)
   {
     vTaskDelay(1);
@@ -86,11 +71,7 @@ void TaskSerial(void *pvParameters)
     }
   }
 }
-
-/*
- * Blink task.
- * See Blink_AnalogRead example.
- */
+// Stand alone led blinkg @ 1 second interval
 void TaskBlink(void *pvParameters)
 {
   (void)pvParameters;
@@ -100,12 +81,13 @@ void TaskBlink(void *pvParameters)
   for (;;)
   {
     digitalWrite(LED_BUILTIN, HIGH);
-    vTaskDelay(250 / portTICK_PERIOD_MS);
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
     digitalWrite(LED_BUILTIN, LOW);
-    vTaskDelay(250 / portTICK_PERIOD_MS);
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
   }
 }
-
+// Led blingking task for blingking led for 5 second 
+// on reciving cmd from controller task
 void Led_Task_5(void *pvParameters)
 {
   (void)pvParameters;
@@ -117,17 +99,19 @@ void Led_Task_5(void *pvParameters)
   {
     if (xQueueReceive(integerQueue, &valueFromQueue, portMAX_DELAY) == pdPASS)
     {
-      if (valueFromQueue==1)
+      if (valueFromQueue == 1)
       {
-      
-      digitalWrite(8, HIGH);
-      vTaskDelay(5000 / portTICK_PERIOD_MS);
-      digitalWrite(8, LOW);
+
+        digitalWrite(8, HIGH);
+        vTaskDelay(5000 / portTICK_PERIOD_MS);
+        digitalWrite(8, LOW);
       }
     }
   }
 }
 
+// Led blingking task for blingking led fro 2 second 
+// on reciving cmd from controller task
 void Led_Task_2(void *pvParameters)
 {
   (void)pvParameters;
@@ -139,12 +123,12 @@ void Led_Task_2(void *pvParameters)
   {
     if (xQueueReceive(integerQueue_2, &valueFromQueue, portMAX_DELAY) == pdPASS)
     {
-      if (valueFromQueue==1)
+      if (valueFromQueue == 1)
       {
-      
-      digitalWrite(9, HIGH);
-      vTaskDelay(600 / portTICK_PERIOD_MS);
-      digitalWrite(9, LOW);
+
+        digitalWrite(9, HIGH);
+        vTaskDelay(600 / portTICK_PERIOD_MS); // Not exectly 2 second but got this value by hit and trial
+        digitalWrite(9, LOW);
       }
     }
   }
@@ -156,23 +140,24 @@ void setup()
    * Create a queue.
    * https://www.freertos.org/a00116.html
    */
-  debugSerial.begin(9600);
-  integerQueue = xQueueCreate(10,sizeof(int));
-  integerQueue_2 = xQueueCreate(1,sizeof(int));
 
-  if (integerQueue != NULL) // Make different if conditoin for function that consume same queue message
+  debugSerial.begin(9600);
+  integerQueue = xQueueCreate(10, sizeof(int));
+  integerQueue_2 = xQueueCreate(1, sizeof(int));
+
+  if (integerQueue != NULL) // Make different if condition for function that consume same queue message
   {
 
     // Create task that consumes the queue if it was created.
     xTaskCreate(TaskSerial, // Task function
                 "Serial",   // A name just for humans
-                500,       // This stack size can be checked & adjusted by reading the Stack Highwater
+                500,        // This stack size can be checked & adjusted by reading the Stack Highwater
                 NULL,
                 1, // Priority, with 3 (configMAX_PRIORITIES - 1) being the highest, and 0 being the lowest.
                 NULL);
     xTaskCreate(Led_Task_5,             // Task function
                 "led blink task 5 sec", // A name just for humans
-                500,                   // This stack size can be checked & adjusted by reading the Stack Highwater
+                500,                    // This stack size can be checked & adjusted by reading the Stack Highwater
                 NULL,
                 1, // Priority, with 3 (configMAX_PRIORITIES - 1) being the highest, and 0 being the lowest.
                 NULL);
@@ -180,16 +165,17 @@ void setup()
     // Create task that publish data in the queue if it was created.
     xTaskCreate(ReadContorller, // Task function
                 "AnalogRead",   // Task name
-                500,           // Stack size
+                500,            // Stack size
                 NULL,
                 1, // Priority
                 NULL);
   }
-  if (integerQueue_2!=NULL){
+  if (integerQueue_2 != NULL)
+  {
 
     xTaskCreate(Led_Task_2,             // Task function
                 "led blink task 2 sec", // A name just for humans
-                500,                   // This stack size can be checked & adjusted by reading the Stack Highwater
+                500,                    // This stack size can be checked & adjusted by reading the Stack Highwater
                 NULL,
                 2, // Priority, with 3 (configMAX_PRIORITIES - 1) being the highest, and 0 being the lowest.
                 NULL);
@@ -197,7 +183,7 @@ void setup()
 
   xTaskCreate(TaskBlink, // Task function
               "Blink",   // Task name
-              500,      // Stack size
+              500,       // Stack size
               NULL,
               1, // Priority
               NULL);
